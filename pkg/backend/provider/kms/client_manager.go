@@ -2,12 +2,12 @@ package kms
 
 import (
 	"fmt"
-	"sync"
 	"k8s.io/klog"
+	"sync"
 
 	"github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/provider"
-	backendp "github.com/AliyunContainerService/ack-secret-manager/pkg/backend/provider"
 	backendin "github.com/AliyunContainerService/ack-secret-manager/pkg/backend"
+	backendp "github.com/AliyunContainerService/ack-secret-manager/pkg/backend/provider"
 )
 
 type Manager backendp.Manager
@@ -22,7 +22,7 @@ func NewManager(region string) *Manager {
 
 func (m *Manager) Register(clientName string, client backendin.SecretClient) {
 	kmsClient, ok := client.(*KMSClient)
-	if kmsClient ==nil {
+	if kmsClient == nil {
 		klog.Errorf("client is nil")
 		return
 	}
