@@ -1,0 +1,64 @@
+# .github/workflows/tag.yml
+#
+# Automatically create a tag for a new release.
+#
+# When charts/ack-secret-manager/Chart.yaml is merged into master,
+# read its version field and create the corresponding git tag (with a v prefix, e.g. version: 0.6.7 -> v0.6.7).
+#
+# This operation is idempotent: if the tag already exists it is skipped and not re-created.
+name: Auto Tag Release
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - charts/ack-secret-manager/Chart.yaml
+
+permissions:
+  contents: write
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          # Full history and existing tags are required to determine whether the tag already exists
+          fetch-depth: 0
+
+      - name: Create tag from Chart version
+        run: |
+          set -euo pipefail
+
+          CHART_FILE="charts/ack-secret-manager/Chart.yaml"
+
+          # Extract the version field with grep + sed (prefer the simple approach, avoiding an extra yq install):
+          #   - match the version key at the start of a line (leading whitespace allowed)
+          #   - strip any surrounding quotes and leading/trailing whitespace
+          version="$(grep -E '^[[:space:]]*version:' "${CHART_FILE}" \
+            | head -n1 \
+            | sed -E 's/^[[:space:]]*version:[[:space:]]*//; s/["'"'"']//g; s/[[:space:]]*$//')"
+
+          if [ -z "${version}" ]; then
+            echo "Error: failed to parse the version field from ${CHART_FILE}" >&2
+            exit 1
+          fi
+
+          tag="v${version}"
+          echo "Chart version is ${version}, target tag is ${tag}"
+
+          # Configure commit identity, used by git tag
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Idempotent: skip if the tag already exists
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Skip: tag ${tag} already exists"
+            exit 0
+          fi
+
+          # If it does not exist, create it on the current commit and push
+          echo "Create and push tag ${tag}"
+          git tag -a "${tag}" -m "Release ${tag}"
+          git push origin "${tag}"

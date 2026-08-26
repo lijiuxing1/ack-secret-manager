@@ -7,6 +7,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    concurrency:
+      group: gh-pages-publish
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - name: Set up Helm
@@ -16,11 +19,29 @@ jobs:
       - name: Package chart
         run: |
           helm package ./charts/ack-secret-manager -d ./charts
-      - name: Update index.yaml
+      - name: Fetch existing index from gh-pages
         run: |
-          helm repo index ./charts --url https://aliyuncontainerservice.github.io/ack-secret-manager
+          if git fetch origin gh-pages 2>/dev/null; then
+            if git show origin/gh-pages:index.yaml > existing-index.yaml 2>/dev/null; then
+              echo "Existing index.yaml fetched successfully"
+            else
+              echo "No existing index.yaml found on gh-pages"
+              rm -f existing-index.yaml
+            fi
+          else
+            echo "gh-pages branch does not exist yet"
+            rm -f existing-index.yaml
+          fi
+      - name: Generate repo index
+        run: |
+          if [ -f existing-index.yaml ]; then
+            helm repo index ./charts --url https://aliyuncontainerservice.github.io/ack-secret-manager --merge existing-index.yaml
+          else
+            helm repo index ./charts --url https://aliyuncontainerservice.github.io/ack-secret-manager
+          fi
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./charts
+          keep_files: true
